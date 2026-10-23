@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>髮型試用原型</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --bg: #faf8f6;
+            --panel: #ffffff;
+            --text: #2b2522;
+            --muted: #8a7f78;
+            --line: #e8e1db;
+            --accent: #b0573d;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #171413;
+                --panel: #221e1c;
+                --text: #f1ebe6;
+                --muted: #a39a93;
+                --line: #3a3330;
+                --accent: #e08a6c;
+            }
+        }
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 左右兩欄：左邊鏡頭、右邊選項，各佔一半 */
+        main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            height: 100vh;
+            height: 100dvh;
+        }
+        .camera-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: #1b1715;
+            min-width: 0;
+        }
+        .controls-col {
+            overflow-y: auto;
+            padding: 16px 20px 24px;
+            min-width: 0;
+        }
+        .controls-col .panel:first-of-type { margin-top: 0; }
+        /* 窄螢幕（手機）放不下兩欄：改成上下排列，鏡頭固定在上方 */
+        @media (max-width: 860px) {
+            main { display: block; height: auto; }
+            .camera-col { position: sticky; top: 0; z-index: 2; padding: 8px; }
+            .controls-col { overflow: visible; padding: 16px; }
+        }
+        h1 { font-size: 18px; margin: 4px 0 12px; font-weight: 600; }
+        h1 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+
+        .stage {
+            position: relative;
+            /* 維持 4:3，同時不超出欄高 */
+            width: min(100%, calc((100dvh - 80px) * 4 / 3));
+            aspect-ratio: 4 / 3;
+            background: #000;
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        #view {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transform: scaleX(-1);          /* 鏡像顯示；像素處理一律在未鏡像座標進行 */
+        }
+        #video { display: none; }
+        #stats {
+            position: absolute;
+            left: 8px; top: 8px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            white-space: pre;
+            pointer-events: none;
+        }
+        #start {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px;
+            text-align: center;
+            color: #fff;
+            background: #1b1715;
+        }
+        #start p { margin: 0; font-size: 14px; color: #cfc6bf; max-width: 360px; line-height: 1.6; }
+
+        button {
+            font: inherit;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            color: var(--text);
+            border-radius: 999px;
+            padding: 8px 14px;
+            cursor: pointer;
+        }
+        button.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 10px 22px; font-size: 15px; }
+        button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+        button:disabled { opacity: 0.5; cursor: default; }
+
+        .panel {
+            margin-top: 14px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--panel);
+        }
+        .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .row + .row { margin-top: 12px; }
+        .label { font-size: 13px; color: var(--muted); min-width: 64px; }
+
+        .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px; width: 100%; }
+        .swatch {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            padding: 0; border: 0; background: none; border-radius: 0;
+            font-size: 12px; color: var(--muted);
+        }
+        .swatch span.dot {
+            width: 40px; height: 40px; border-radius: 50%;
+            border: 2px solid var(--line);
+            box-shadow: inset 0 0 0 2px var(--panel);
+        }
+        .swatch[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+        .swatch[aria-pressed="true"] span.dot { border-color: var(--accent); }
+
+        input[type="range"] { flex: 1; min-width: 140px; accent-color: var(--accent); }
+        select {
+            font: inherit; color: var(--text); background: var(--panel);
+            border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px;
+        }
+        .note { font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.6; }
+        #status { font-size: 13px; color: #cfc6bf; margin-top: 10px; min-height: 1.4em; text-align: center; }
+        #status.error { color: #ff7a6b; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 4px; }
+        .group-label { font-size: 13px; color: var(--muted); margin: 4px 0 8px; }
+        .style-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; margin-bottom: 12px; }
+        .style-btn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+            min-height: 40px; padding: 6px 4px; border-radius: 12px; font-size: 12px; line-height: 1.2;
+        }
+        .style-btn img { width: 56px; height: 56px; object-fit: cover; object-position: center 20%; border-radius: 10px; }
+        .tabs button { flex: 1; }
+        body[data-tab="style"] .only-color { display: none; }
+        body[data-tab="color"] .only-style { display: none; }
+        /* ---------- 拍照 ---------- */
+        .shutter-bar {
+            position: absolute; left: 0; right: 0; bottom: 14px;
+            display: flex; align-items: center; justify-content: center; gap: 28px;
+            pointer-events: none;
+        }
+        .shutter-bar > * { pointer-events: auto; }
+        .shutter {
+            width: 64px; height: 64px; padding: 0; border-radius: 50%;
+            border: 4px solid #fff; background: rgba(255, 255, 255, 0.35);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+            transition: transform 0.1s, background 0.15s;
+        }
+        .shutter:hover { background: rgba(255, 255, 255, 0.55); }
+        .shutter:active { transform: scale(0.92); }
+        .shutter:disabled { opacity: 0.4; }
+        .round-btn {
+            min-width: 52px; height: 36px; padding: 0 12px;
+            border: 0; border-radius: 999px;
+            background: rgba(0, 0, 0, 0.5); color: #fff; font-size: 13px;
+        }
+        .round-btn[aria-pressed="true"] { background: rgba(0, 0, 0, 0.75); color: #ffd7c9; font-weight: 600; }
+        .shutter-spacer { min-width: 52px; }
+        #countdown {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-size: 96px; font-weight: 700; color: #fff; text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+        }
+        #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+        #flash.on { animation: flash 0.35s ease-out; }
+        @keyframes flash { from { opacity: 0.85; } to { opacity: 0; } }
+
+        .gallery {
+            display: flex; gap: 8px; margin-top: 10px; max-width: 100%;
+            overflow-x: auto; padding-bottom: 4px;
+        }
+        .gallery:empty { display: none; }
+        .gallery button {
+            flex: 0 0 auto; padding: 0; border: 2px solid transparent; border-radius: 8px;
+            background: none; overflow: hidden; width: 64px; height: 48px;
+        }
+        .gallery button:hover { border-color: #ffd7c9; }
+        .gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        #photo-dialog {
+            border: 0; border-radius: 16px; padding: 12px; max-width: min(92vw, 900px);
+            background: var(--panel); color: var(--text);
+        }
+        #photo-dialog::backdrop { background: rgba(0, 0, 0, 0.7); }
+        #photo-dialog img { display: block; max-width: 100%; max-height: 72vh; border-radius: 10px; }
+        .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+        .dialog-actions .danger { color: #d0453a; }
+    </style>
+</head>
+<body data-tab="style">
+<main>
+  <div class="camera-col">
+    <div class="stage">
+        <canvas id="view"></canvas>
+        <div id="stats" hidden></div>
+        <div id="countdown" hidden></div>
+        <div id="flash"></div>
+        <div class="shutter-bar" id="shutter-bar" hidden>
+            <button id="timer-btn" class="round-btn" aria-pressed="false" title="倒數計時">計時 關</button>
+            <button id="shutter" class="shutter" aria-label="拍照" title="拍照（空白鍵）"></button>
+            <span class="shutter-spacer"></span>
+        </div>
+        <div id="start">
+            <p>開啟鏡頭後，會在本機即時偵測臉部與頭髮，試戴髮型和髮色。<br>影像只在你的裝置上處理，不會上傳。</p>
+            <button id="start-btn" class="primary">開啟鏡頭</button>
+        </div>
+    </div>
+    <video id="video" playsinline muted></video>
+    <div id="status"></div>
+    <div id="gallery" class="gallery" aria-label="已拍的照片"></div>
+  </div>
+
+  <div class="controls-col">
+    <h1>髮型試用原型 <small>照片髮型 · 即時染髮</small></h1>
+
+    <section class="panel">
+        <div class="tabs">
+            <button data-tab="style" aria-pressed="true">髮型</button>
+            <button data-tab="color" aria-pressed="false">髮色</button>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="only-style" id="styles"></div>
+        <div class="row only-color">
+            <span class="label">顯示</span>
+            <button data-mode="dye" aria-pressed="true">染髮</button>
+            <button data-mode="overlay" aria-pressed="false">遮罩</button>
+            <button data-mode="off" aria-pressed="false">原圖</button>
+        </div>
+        <div class="row">
+            <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="row only-style">
+            <span class="label">大小</span>
+            <input type="range" id="fit-scale" min="80" max="130" value="100">
+            <span id="fit-scale-value" style="width:3em;text-align:right">100%</span>
+        </div>
+        <div class="row only-style">
+            <span class="label">上下</span>
+            <input type="range" id="fit-offset" min="-20" max="20" value="0">
+            <span id="fit-offset-value" style="width:3em;text-align:right">0</span>
+        </div>
+        <div class="row only-color">
+            <span class="label">濃淡</span>
+            <input type="range" id="strength" min="0" max="100" value="80">
+            <span id="strength-value" style="width:3em;text-align:right">80%</span>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="row only-color">
+            <span class="label">分割模型</span>
+            <select id="model">
+                <option value="hair">頭髮專用（512，較準）</option>
+                <option value="multiclass">多類別（256，較快）</option>
+            </select>
+        </div>
+        <div class="row only-color">
+            <span class="label">分割頻率</span>
+            <select id="seg-every">
+                <option value="1">每幀</option>
+                <option value="2">隔一幀</option>
+                <option value="3">每三幀</option>
+            </select>
+        </div>
+        <div class="row">
+            <span class="label">工具</span>
+            <button id="stats-btn" aria-pressed="false">效能數據</button>
+        </div>
+        <p class="note">
+            <span class="only-style">髮型是貼圖：原本的頭髮若比新髮型長，會從邊緣露出來。髮型位置不準時用「大小」「上下」微調。<br></span>
+            <span class="only-color">測試重點：fps、髮際線與髮尾邊緣是否溢色、捲髮與深色髮的表現。<br></span>
+            手機測試需要 HTTPS（localhost 例外），否則瀏覽器不會開放鏡頭。
+        </p>
+    </section>
+  </div>
+</main>
+<dialog id="photo-dialog">
+    <img id="photo-preview" alt="拍下的照片">
+    <div class="dialog-actions">
+        <button id="photo-delete" class="danger">刪除</button>
+        <button id="photo-share" hidden>分享</button>
+        <button id="photo-download">下載</button>
+        <button id="photo-close" class="primary">關閉</button>
+    </div>
+</dialog>
+<script type="module" src="hair.js"></script>
+</body>
+</html>

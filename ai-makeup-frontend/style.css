@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Grotesk:wght@500;600&display=swap');
+body { font-family: 'Noto Sans TC', sans-serif; touch-action: manipulation; background-color: #F7F6F3; }
+.eyebrow { font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.16em; text-transform: uppercase; }
+.vto-container { aspect-ratio: 3/4; position: relative; overflow: hidden; border-radius: 14px; background: #EDEBE5; border: 1px solid #E7E5DE; }
+#video-element, #output-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+/* video 元素只當作影格來源，畫面實際顯示都畫進 canvas；用 opacity:0（而不是 display:none）
+   保持隱藏，避免部分手機瀏覽器（尤其 Safari）對 display:none 的 video 降頻或暫停解碼 */
+#video-element { opacity: 0; pointer-events: none; }
+.active-tab { color: #26251F; font-weight: 500; border-bottom: 2px solid #26251F; }
+.swatch-scroll-wrap { position: relative; }
+.swatch-scroll-wrap::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 32px; background: linear-gradient(to right, transparent, #F7F6F3); pointer-events: none; }
+.no-scrollbar { -webkit-overflow-scrolling: touch; }
+.swatch-item.active .swatch-circle { border: 1.5px solid #26251F; padding: 2px; background-clip: content-box; }
+#start-screen { background-color: #F7F6F3; z-index: 100; }
+.btn-primary { background-color: #26251F; transition: opacity 0.2s ease; }
+.btn-primary:active { opacity: 0.85; }
+.scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #26251F, transparent); animation: scan 2s linear infinite; display: none; }
+@keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+#loading-overlay { transition: opacity 0.5s ease; }
+/* 次數用完或分析中時按鈕會被停用，原本外觀完全沒變，使用者以為按鈕壞了 */
+/* 對比按鈕要長按：關掉瀏覽器的觸控手勢與 iOS 長按選單，避免按住途中被打斷 */
+#compare-btn { touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+#intensity-slider { accent-color: #26251F; }
+#ai-analyze-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 對焦框：四角括號線條 */
+.viewfinder { position: relative; width: 130px; height: 130px; }
+.vf-corner { position: absolute; width: 22px; height: 22px; border-color: #26251F; }
+.vf-corner.tl { top: 0; left: 0; border-top: 1.5px solid; border-left: 1.5px solid; }
+.vf-corner.tr { top: 0; right: 0; border-top: 1.5px solid; border-right: 1.5px solid; }
+.vf-corner.bl { bottom: 0; left: 0; border-bottom: 1.5px solid; border-left: 1.5px solid; }
+.vf-corner.br { bottom: 0; right: 0; border-bottom: 1.5px solid; border-right: 1.5px solid; }
+
+/* ===================================================================
+   桌面版（電腦專屬）介面。以下規則只在 >=1024px 生效，
+   手機版（<1024px）維持原本樣式完全不變。
+   =================================================================== */
+@media (min-width: 1024px) {
+
+    #app-shell { max-width: 1440px; }
+
+    /* 頂部標題列：從手機版置中堆疊改成滿版橫列 */
+    #app-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        padding: 22px 56px;
+        border-bottom: 1px solid #E7E5DE;
+    }
+    #app-header > div { display: none; } /* 手機版標題間的短分隔線，橫排不需要 */
+
+    /* 開鏡頭引導頁：左側觀景窗、右側文字與按鈕的分欄卡片。
+       start-screen 本身要維持 inset:0 滿版覆蓋（蓋住底下的 header/main），
+       所以「置中」是靠 justify-content 讓固定寬度的 grid 軌道置中，
+       不能用 max-width+margin:auto 去縮小 start-screen 自己的box——
+       那樣會讓覆蓋範圍縮水，兩側露出底下 header 文字（已踩過這個坑）。 */
+    #start-screen {
+        display: grid;
+        grid-template-columns: 420px 480px;
+        grid-template-areas:
+            "vf eyebrow"
+            "vf heading"
+            "vf guidance"
+            "vf button"
+            "vf helper";
+        align-items: start;
+        justify-items: start;
+        justify-content: center;
+        text-align: left;
+        column-gap: 56px;
+        row-gap: 18px;
+        padding: 72px 0;
+    }
+    #start-screen .viewfinder { grid-area: vf; align-self: center; justify-self: center; margin-top: 0; }
+    #onboarding-eyebrow { grid-area: eyebrow; }
+    #onboarding-heading { grid-area: heading; font-size: 26px; }
+    #onboarding-guidance { grid-area: guidance; margin-top: 0; }
+    #init-btn { grid-area: button; width: 280px; margin-top: 8px; }
+    #onboarding-helper { grid-area: helper; }
+
+    /* 主要試妝畫面：大鏡頭預覽置中 + 右側固定側邊欄 */
+    #app-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 40px;
+        padding: 40px 56px;
+    }
+    #app-content > .vto-container {
+        flex: 1 1 auto;
+        max-width: 760px;
+        aspect-ratio: 4 / 3;
+        margin: 0 auto;
+    }
+    #sidebar-panel {
+        width: 400px;
+        flex-shrink: 0;
+        background: #FFFFFF;
+        border: 1px solid #E7E5DE;
+        border-radius: 16px;
+        padding: 24px;
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+    }
+    #sidebar-panel #ai-result-panel { margin-top: 0; }
+
+    /* 色卡：手機版的橫向滑動改成滑鼠可直接點擊的網格 */
+    #lip-selector, #eye-selector, #base-selector {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px 12px;
+        overflow-x: visible;
+    }
+    #lip-selector .swatch-item, #eye-selector .swatch-item, #base-selector .swatch-item {
+        width: auto;
+    }
+    .swatch-scroll-wrap::after { display: none; } /* 橫向滑動的邊緣漸層提示，網格版不需要 */
+}
