@@ -1,0 +1,20 @@
+# Render Blueprint：把髮型試用頁部署成靜態網站（Static Site）
+#
+# 髮型 / 髮色試用（hair.html）完全在瀏覽器端運作，不需要後端或 API 金鑰。
+# 建置時把前端複製到 public/，並讓 hair.html 成為首頁：
+#   /             → 髮型試用（hair.html 的複本）
+#   /hair.html    → 髮型試用
+#   /makeup.html  → 原本的 AI 試妝頁（原 index.html，需要後端才能用 AI 分析）
+# Render 的 rewrite 規則只在「路徑沒有對應檔案」時生效，/ 已經有 index.html，
+# 所以用建置步驟換首頁，而不是 rewrite。
+services:
+  - type: web
+    name: ai-hairstyle
+    runtime: static
+    buildCommand: >-
+      rm -rf public &&
+      mkdir -p public &&
+      cp -r ai-makeup-frontend/. public/ &&
+      mv public/index.html public/makeup.html &&
+      cp public/hair.html public/index.html
+    staticPublishPath: ./public
